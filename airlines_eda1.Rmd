@@ -1,0 +1,238 @@
+---
+title: "Airline Safety"
+author: "Pranesh Krishnamurthy"
+date: "26 January 2018"
+output:
+  html_document:
+    df_print: paged
+---
+
+A reboot of the airline safety project that I had attempted some time ago
+
+# Setup
+
+```{r load library}
+
+library(tidyverse)
+```
+
+```{r load data}
+
+airlines <- read_csv("../Derived/airline_safety_cleaned.csv", col_names = T)
+```
+
+# Exploring crashes
+
+First lets look at the number of incidents by years
+
+```{r incidents by year}
+
+# ggplot(airlines) + aes(incidents) + geom_freqpoly(binwidth = 1, aes(col = time_span))
+```
+
+The distribution seems to be rather skewed. The number of incidents does not tell us a great deal just by itself. It does tell us that the number of incidents that occur is very less.
+
+What about the number of fatal accidents?
+
+```{r fatal accidents by years}
+
+# ggplot(airlines) + aes(fatal_accidents) + geom_freqpoly(binwidth = 1, aes(col = time_span))
+```
+
+More accidents occurred from 1989 - 1999 than from 2000 - 2014.
+
+I think that it would be better to look at the summary plots of these accidents than to look at the complete distribution.
+
+```{r incidents by year1}
+
+ggplot(airlines) + aes(time_span, incidents) + stat_summary(
+  fun.ymin = min,
+  fun.ymax = max,
+  fun.y = mean
+)
+```
+
+```{r fatal accidents by years1}
+
+ggplot(airlines) + aes(time_span, fatal_accidents) + stat_summary(
+  fun.ymin = min,
+  fun.ymax = max,
+  fun.y = median
+)
+```
+
+There were clearly more incidents and fatalities in the last 14 years of 20th century than in the first 14 years of the 21st century.
+Is it the same with the number of fatalities?
+
+```{r summary plot: fatalities}
+
+ggplot(airlines) + aes(time_span, fatalities) + stat_summary(
+  fun.ymin = min,
+  fun.ymax = max,
+  fun.y = median
+)
+```
+
+Although the median values of the fatalities are different, the max of fatalities that occured in 2000 - 2014 seems to be greater. 
+
+The next question, which are those flights?
+
+I'll continue this later.
+
+```{r flights with more fatalities}
+
+airlines2 <- airlines %>% 
+  gather(fatal_accidents:incidents, key = "type", value = "count") %>% 
+  spread(time_span, count) 
+```
+
+```{r incidents: time_span}
+airlines2 %>% 
+  filter(type == "incidents") %>% 
+  ggplot() + aes(`1985 - 1999`, `2000 - 2014`) + geom_point() + geom_smooth(method = "lm")
+```
+
+Wow! This plot shows that airlines that tended to have more accidents from '85-'99 had the same number of accidents from Y2K to 2k14. 
+
+Is there a correlation?
+
+```{r incidents time_spans: correlation}
+
+cor(airlines2$`1985 - 1999`[airlines2$type == "incidents"], airlines2$`2000 - 2014`[airlines2$type == "incidents"])
+```
+
+I expected a negative correlation. But there is a positive correlation...
+
+But, what was the difference we saw before in the summary plots? Is that difference statistically significant?
+
+#### Testing differences for statistical significance
+
+Let's check a few things:
+1. Is the data normally distributed?
+
+```{r normality}
+
+# kolmogorov-smirnov test
+ks.test(airlines$incidents, rnorm(112, mean(airlines$incidents), sd(airlines$incidents)))
+
+# qq-plot
+
+ggplot(airlines) + aes(sample = incidents) + geom_qq()
+```
+
+The data isn't normally distributed, so we cannot use the anova. This means that the t-test and other parametric tests are out of the question. This leaves the kruskal wallis h test and the Mann-Whitney U test.
+
+```{r wilcoxon rank sum test}
+
+wilcox.test(incidents ~ time_span, data = airlines)
+```
+
+So, this test concludes that the differences are statistically significant. But, what does this actually mean?
+
+The differences in the median values of the time spans are not due to random chance. Maybe there were some interventions. Maybe companies that had a high incident rate took some drastic measures to improve the quality of their systems.
+ _look up material on this_
+ 
+With this the fact that companies have improved their safety is pretty clear. But, this is only the incidents. What about something that's more concrete, like fatalities?
+
+```{r fatalities by period}
+
+airlines2 %>% 
+  filter(type == "fatalities") %>% 
+  ggplot() + aes(`1985 - 1999`, `2000 - 2014`) + geom_point() + 
+  geom_smooth(se = F, method = "lm") 
+```
+
+Wow! Those are some major outliers. 
+
+Are these airlines similar in some aspects? To answer this question, I'll look at these airlines separately.
+
+#### The Outliers
+
+```{r the outliers}
+
+airlines %>% 
+  filter(fatalities > 200) %>% 
+  count(airline)
+```
+
+Only one airline: China Airlines has had a high number of fatalities consistently in the last 28 years.
+
+```{r}
+airlines %>% filter(airline == "China Airlines")
+```
+
+In the last 28 years, China Airlines has had 14 incidents with 7 fatal accidents and 760 fatalities.
+
+That's pretty major if you ask me.
+
+What's the trend in fatal accidents?
+
+```{r}
+airlines2 %>% 
+  filter(type == "fatal_accidents") %>% 
+  ggplot() + aes(`1985 - 1999`, `2000 - 2014`) + geom_point(alpha = 0.4) + 
+  geom_smooth(method = "lm")
+```
+
+The number of fatal accidents has increased. 
+
+So the number of incidents have decreased over time, while the fatalities and fatal_accidents have increased in number?
+
+Could the few accidents that occur have increased in fatality? If that's the case, why hasn't there been an uproar in the new regarding this?
+
+I have a wierd feeling that the number of miles flown per week has something to with this...
+
+#### Have the airlines been flying more in recent times?
+
+So, has air travel gotten more safer over the years? 
+
+To find this out, I will:
+1. Normalize the avialable seat kilometers per week
+2. Divide incidents, fatalities and accidents by the standardized score
+
+This means that airlines which flew a lot and had a lot of accidents will have a high score while those that flew a lot less and had a lot of incidents will have
+
+```{r standardizing available seat km per week}
+
+# defining a new funciton
+
+normalize <- function(x) {
+  
+  z = (max(x) - x ) / diff(range(x)) # normalzing step
+  
+  return(z)
+}
+```
+
+```{r normalizing stuff}
+
+# airlines %>% 
+#   mutate(std_km = normalize(avail_seat_km_per_week),
+#           std_in = normalize(incidents),
+#           std_fa = normalize(fatal_accidents),
+#           std_f = normalize(fatalities),
+#          total_score = (std_in + std_fa + std_f) / std_km)
+
+# airlines %>%
+#   mutate(total_score = (incidents + fatalities + fatal_accidents) / avail_seat_km_per_week,
+#          total_score_std = normalize(total_score))
+
+# function to calculate quantity_per_seat_km
+
+skm <- function(df, x) {
+  
+  z = x / df$avail_seat_km_per_week
+  
+  return(x)
+}
+```
+
+```{r}
+
+airlines %>% 
+  mutate(in_avspw = incidents / avail_seat_km_per_week,
+         fa_avspw = fatal_accidents / avail_seat_km_per_week,
+         f_avspw = fatalities / avail_seat_km_per_week,
+         f_avspw_scld = scale(f_avspw))
+```
+

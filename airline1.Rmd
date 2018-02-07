@@ -1,0 +1,82 @@
+---
+title: "Airline Safety"
+author: "Pranesh Krishnamurthy"
+date: "25 January 2018"
+output: pdf_document
+---
+
+This is a reboot of the initial exploration project (which failed).
+
+Setup
+---
+
+```{r libraries}
+
+library(tidyverse)
+```
+
+```{r data}
+
+airlines <- read_csv("../Data/airlinesafety.csv", col_names = T)
+```
+
+
+# Data wrangling
+
+The data doesn't seem to be in a form that we can easily work with, so we'll need to wrangle it to make it so.
+
+## Convert to tidy data
+
+Firstly, there are a lot of redundant variables. So, I'll gather them under one column and then focus on separating them, so that I can easily analyse the data.
+
+### Gathering
+
+```{r gathering}
+
+airlines <- airlines %>% 
+  gather(incidents_85_99:fatalities_00_14, key = "type", value = "count") 
+```
+
+### Replacing the underscores with a dot
+
+```{r replace the dots}
+
+airlines$type <- str_replace(airlines$type, "_(?=[0-9])", "\\.")
+```
+
+### Separating type and time-span
+
+```{r separating type and time-span}
+
+airlines <- airlines %>% 
+  separate(type, c("type", "time_span"), sep = "\\.")
+```
+
+### Fixing parsing issues and recoding variables
+
+Now that I've separated the variables, I can proceed to recode them and you know, sorta do stuff with them.
+
+```{r recoding variables}
+
+airlines <- airlines %>% 
+  mutate(time_span = fct_recode(time_span,
+                                "1985 - 1999" = "85_99",
+                                "2000 - 2014" = "00_14"))
+```
+
+Now that this is over, the dataset is finally starting to take shape. To make the data tidy, one last step is necessary. Spreading the type of incidents into columns.
+
+```{r spreading type}
+
+airlines <- airlines %>% 
+  spread(type, count)
+```
+
+With this, the data has been put in a form that is easy to analyze. We'll do just that now.
+
+```{r writing to disk}
+
+write_csv(airlines, "../Derived/airline_safety_cleaned.csv", col_names = T)
+```
+
+
