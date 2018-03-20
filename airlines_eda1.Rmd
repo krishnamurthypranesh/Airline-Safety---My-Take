@@ -184,7 +184,7 @@ I have a wierd feeling that the number of miles flown per week has something to 
 
 #### Have the airlines been flying more in recent times?
 
-So, has air travel gotten more safer over the years? 
+So, has air travel gotten safer over the years? 
 
 To find this out, I will:
 1. Normalize the avialable seat kilometers per week
